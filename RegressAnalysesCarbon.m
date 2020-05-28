@@ -1,4 +1,7 @@
 function RegressAnalysesCarbon
+if matlabpool('size') ~= 0
+    evalc('matlabpool close');
+end
 % Do once then comment since loaded below
 % Ensembles = ReadEnsembles;
 % Variables = ReadVariables;
@@ -6,10 +9,6 @@ function RegressAnalysesCarbon
 % save('TheDataperKM','Ensembles','Variables')
 %% Regression analyses
 clear all
-if matlabpool('size') ~= 0
-    evalc('matlabpool close');
-end
-load('ResultsCarbonNew');
 EnsemblesNames = [{'CrossAIC'},{'CrossCross'},{'CrossDev'},...
     {'CrossLeast'},{'CrossRho'},{'UniqueDown'},{'UniqueUp'},...
     {'GridSize'},{'Mean'},{'Median'},{'PCA'},{'Regress2Median'},...
@@ -150,7 +149,6 @@ end
 
 function  Variables = ReadVariables
 % Read list
-clear all
 list = dir;
 length_names = length(list);
 count = 1;
