@@ -5,14 +5,14 @@ Leni = length(Comparator.Service);
 PerNr = randperm(Leni);
 % jack knife sample is equal for all models!
 Parameters.Training = sort(PerNr(1:ceil(Parameters.TProp*Leni)));
-if  Parameters.testRun ~= 2
+if  Parameters.testRun < 2
 Parameters.Validator = sort(PerNr((ceil(Parameters.TProp*Leni)+1):Leni));
 else
 Parameters.Validator = Parameters.Training;    
 end
 clear PerNr Leni
 for data_set = 1:1:Parameters.data_set_max
-    %% Calculate for Models
+    %% Make all values per hectare
     str = sprintf('Running Model= %s ',char(Parameters.SetNames(data_set)));
     disp(str)
     TmpX = (Comparator.Service./Parameters.Sizes);
@@ -32,6 +32,10 @@ for data_set = 1:1:Parameters.data_set_max
     [Outputs] = Accuracy_statistics_UK(testArray,Parameters,Sizes);% run statistics
     [Results,Points,Weighting] = Make_ModelResults_UK(Outputs,Parameters,Results,Points,Weighting,data_set);
     clear Training testArray Outputs Sizes
+    if Parameters.testRun == 3 && data_set == Parameters.data_set_max
+        disp(Results.Models)
+        error('myApp:argChk', 'Input arguments error');
+    end
     
     % Jack knifed SET 2; what is needed is normalised model points and acc. validators
     Set2.Vali(:,1) =  TmpX(Parameters.Validator);
@@ -55,14 +59,17 @@ for data_set = 1:1:Parameters.data_set_max
     if data_set ==  Parameters.data_set_max
         display ('  ') % will only show when in test mode
         display ('Ensemble calculations') % will only show when in test mode
-        [Results, Points,Weighting,MaxentStore] = Make_Ensembles_UK(Results,Points,Weighting,Parameters,S2Points,Sizes); %#ok<NASGU>
+        [Results, Points,Weighting,~] = Make_Ensembles_UK(Results,Points,Weighting,Parameters,S2Points,Sizes); 
         % Replace Sensitivity by meta-Ensemble TO MAKE
         %Results = Sensitivity_UK(Results,Points,Models,Parameters,Parameters.data_set_max);
         Points.Comparator = Parameters.Names;
         Points.Sizes =  Models.Areas;
         cd('Output_Dir')
         Output_file = [Parameters.output_file,'_',int2str(run)];
-        save(Output_file,'Results','Points','Weighting','MaxentStore');
+        if Parameters.testRun == 2
+            Output_file = [Parameters.output_file,'_Full'];
+        end
+        save(Output_file,'Results','Points','Weighting');
         cd ..
     end
 end
