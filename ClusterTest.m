@@ -1,49 +1,64 @@
 function Parameters = ClusterTest(Parameters)
 reply = 'N';
-while reply == 'N'
-    reply = 'Y';
-    str = sprintf('      Uniqueness will be done with %d categories ',Parameters.NrCat);
-    disp(str)
+while reply ~= 'Y'
+      ShowTextReply(Parameters)
     test = Parameters.UniqueMatrix(Parameters.SetNames,:);
     Y =squareform(pdist(double(test),'spearman'));
+    Y(isnan(Y)==1) = 0;
     Z = linkage(Y);
     Parameters.groups = clusterdata(double(test),'distance','spearman','maxclust',Parameters.NrCat);
     if Parameters.testRun ~= 1
-        for i = 1:length(Parameters.SetNames)
-            Text =[int2str(Parameters.groups(i)),'_',char(Parameters.SetNames(i))];
-            LabelsText(i) = {Text};     %#ok<*AGROW>
-            clear Text
-        end
-        dendrogram(Z,'labels',LabelsText)
-        t = timer('ExecutionMode', 'singleShot', 'StartDelay', Parameters.TimeOut, 'TimerFcn', @pressEnter);
-        start(t);
-        reply = input('      Is this the right number of categories Y/N: ', 's');
-        stop(t);
-        if isempty(reply) == 1
-            reply = 'Y';
-        end
-        if strcmp('y',reply) == 1
-            reply = 'Y';
-        end
-        if strcmp('Y',reply) ~= 1 && strcmp('y',reply) ~= 1
-            reply = 'N';
-        end
+        reply = showFigure(Parameters,Z);
         str = sprintf('      The reply was: %s ',reply);
         disp(str)
-        str = sprintf('      Uniqueness will be done with %d categories ',Parameters.NrCat);
-        disp(str)
-        if strcmp('Y',reply) ~= 1
+        if strcmp('man',reply) == 1 || strcmp('Man',reply) ==1
+            [Parameters,reply] = ManGroups(Parameters,Z);
+        elseif strcmp('Y',reply) ~= 1 
+            reply = 'N';
             Parameters.NrCat = str2double(input('Enter new number of categories: ', 's'));
         end
-    end
-    close
+    else
+          reply = 'Y';
+    end 
+end
+close
+end
+
+function reply = showFigure(Parameters,Z)
+close
+for i = 1:length(Parameters.SetNames)
+    Text =[int2str(Parameters.groups(i)),'_',char(Parameters.SetNames(i))];
+    LabelsText(i) = {Text};     %#ok<*AGROW>
+    clear Text
+end
+dendrogram(Z,'labels',LabelsText)
+reply = input('      Are those the right category assignments Y/N/Man: ', 's');
+if strcmp('y',reply) == 1
+    reply = 'Y';
 end
 end
 
-function pressEnter(HObj, event) %#ok<INUSD>
-import java.awt.*;
-import java.awt.event.*;
-rob = Robot;
-rob.keyPress(KeyEvent.VK_ENTER)
-rob.keyRelease(KeyEvent.VK_ENTER)
+function [Parameters,reply] = ManGroups(Parameters,Z)
+ Parameters.groups = (input('Enter array of categories [.;.;.](check order): '));
+ Parameters.NrCat = length(unique(Parameters.groups));
+ reply = showFigure(Parameters,Z);
+ end
+
+function ShowTextReply(Parameters)
+str = sprintf('      Uniqueness will be done with %d categories ',Parameters.NrCat);
+disp(str)
 end
+
+%         t = timer('ExecutionMode', 'singleShot', 'StartDelay', Parameters.TimeOut, 'TimerFcn', @pressEnter);
+%         start(t);
+% %         stop(t);
+%         if isempty(reply) == 1
+%             reply = 'Y';
+%         end
+% function pressEnter(HObj, event) %#ok<INUSD>
+% import java.awt.*;
+% import java.awt.event.*;
+% rob = Robot;
+% rob.keyPress(KeyEvent.VK_ENTER)
+% rob.keyRelease(KeyEvent.VK_ENTER)
+% end

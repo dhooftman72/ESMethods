@@ -1,4 +1,4 @@
-function Ensembles_Analyses_UK(validation_set,testset,runMax)
+function Ensembles_Analyses_UK(validation_sets,testset,runMax)
 % Clean and wipe
 clc
 close all hidden
@@ -10,20 +10,22 @@ if exist('Output_Dir','dir') ~= 7
 mkdir('Output_Dir')
 end
 %% join validation data with comparator
-for validation_set = validation_set % To be added with function call
+for validation_set = validation_sets % To be added with function call
     clearvars -except validation_set testset runMax
     Parameters.testRun = testset;
     Parameters.runMax = runMax;
     Parameters.Ensemble_Names = {'Best Model Deviance';'Best Model Rho';... % Reference (1,2)
-        'Mean';'Median';'PCA_weighting';'Median_among';'RegressAmong';'RegressAmongFlipped';... % Non-Informed (3-8)
-        'MaxentDev';'MaxentRho';'MaxentDevFlip';'MaxentRhoFlip';'CorCoef';'CorrCoefFlip';'UniqueUpWeight';'UniqueDownWeight';... % Non-Informed (9-16)
-        'HalfInformed_Deviance'; 'HalfInformed_Rho';'HalfInformed_BestDev';'HalfInformed_BestRho';...% Half-Informed (17 (cut-off) - 20)
-        'HalfInformed_Bagging';'HalfInformed_IterBaggingDev'; 'HalfInformed_IterBaggingRho'}; % Half-Informed (22 - 23)
+        'Mean';'Median';'PCA_weighting';'Median_among';'RegressAmong';... % Non-Informed (3-7)
+        'MaxentDev';'MaxentRho';'MaxentLeast';'CorCoef';'GridSize';'UniqueUpWeight';...% Non-Informed (8-13)
+        'UniqueDownWeight';'AllInformed';... % Non-Informed (14-15)
+        'HalfInformed_Deviance'; 'HalfInformed_Rho';'HalfInformed_BestDev';'HalfInformed_BestRho';...% Half-Informed (16 (cut-off) - 19)
+        'HalfInformed_Bagging';'HalfInformed_IterBaggingDev'; 'HalfInformed_IterBaggingRho';'HalfInformed_IterBaggingLeast'}; % Half-Informed (20 - 23)
+        %'RegressAmongFlipped';'MaxentDevFlip';'MaxentRhoFlip';
     
-    % set all model, comparator values and further parameters
+        % set all model, comparator values and further parameters
     [Parameters, Models,Comparator] = DefintionSet(validation_set,Parameters); 
     Parameters = ClusterTest(Parameters);
-    if Parameters.testRun ~= 1 && Parameters.testRun ~= 2  
+    if Parameters.testRun == 0
         display('Paralel job')
         job = createJob('configuration', 'Full');
         for run= 1:Parameters.runMax
@@ -42,14 +44,23 @@ for validation_set = validation_set % To be added with function call
     display ('  ')
     display ('  ')
     display ('Combining all Runs')
-    [ResultsCombi,ResultsWeights] = JoinFuncUK(Parameters); %#ok<NASGU,ASGLU>
-    Output_file = [Parameters.output_file,'_Combined'];
-    save(Output_file,'ResultsCombi','ResultsWeights','Parameters');
-    str = sprintf('Ready with validation set %s ',char(Parameters.SetNames(validation_set)));
+    [ResultsCombi,ResultsWeights,VariationWeights] = JoinFuncUK(Parameters); %#ok<NASGU,ASGLU>
+    
+    if Parameters.testRun ~= 2
+        Output_file = [Parameters.output_file,'_Bootstrap'];
+        save(Output_file,'ResultsCombi','ResultsWeights','Parameters','VariationWeights');
+    else
+         Output_file = [Parameters.output_file,'_Full'];
+         cd('Output_Dir')
+         load(Output_file);
+         cd ..
+         clear Results Weighting
+         save(Output_file,'ResultsCombi','ResultsWeights','Parameters','VariationWeights','Points');
+    end
+    str = sprintf('Ready with validation set %s ',Parameters.output_file);
     display ('  ')
     display ('  ')   
     disp(str)  
-    display ('Combining all Runs')
 end
 display ('  ')
 display ('  ')   

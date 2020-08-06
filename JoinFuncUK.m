@@ -1,4 +1,4 @@
-function [ResultsCombi,ResultsWeights] = JoinFuncUK(Parameters)
+function [ResultsCombi,ResultsWeights, VariationWeights] = JoinFuncUK(Parameters)
 %[Parameters, ~,~] = DefintionSet_Carbon(validation_set,Parameters);
 %load('necesary_para')
  cd('Output_Dir')
@@ -8,10 +8,13 @@ function [ResultsCombi,ResultsWeights] = JoinFuncUK(Parameters)
  ResultsCombi.Models = dataset({'Dummy'},'VarNames',{'Data_set'});
  nrM = length(Parameters.SetNames);
 for run = 1:Parameters.runMax
- Output_file = [Parameters.output_file,'_',int2str(run),'.mat'];
- load(Output_file);  
-  
-   leni = length(Results.Models.Data_set);
+    Output_file = [Parameters.output_file,'_',int2str(run),'.mat'];
+    if Parameters.testRun == 2
+        Output_file = [Parameters.output_file,'_Full'];
+    end
+    load(Output_file);
+    
+    leni = length(Results.Models.Data_set);
   for i = 1:leni
      IB.Dev(run,i) = Results.Models.Inversed_deviance(i); %#ok<*SAGROW>
      IB.Rho(run,i) =  Results.Models.RHO(i);
@@ -40,18 +43,29 @@ for run = 1:Parameters.runMax
   IB.Improvement_Rho(run,leni+1,1:leni) = (1./(IB.Mod_Improv.Rho(run,:)))';
   IB.Improvement_Rho(run,leni+1,leni+1) = 1;
   
-   IB.SummedWeights.PCA(:,run) = Weighting.PCA(:,2);
+  IB.SummedWeights.PCA(:,run) = Weighting.PCA(:,1);
   IB.SummedWeights.MedianConv(:,run) = Weighting.Median_Models (:,1);
   IB.SummedWeights.MaxentDeviance(:,run) = Weighting.MaxentDev(:,1);
   IB.SummedWeights.MaxentRho(:,run) = Weighting.MaxentRho(:,1);
+  IB.SummedWeights.MaxentLeastSquares(:,run) = Weighting.MaxentLeastSquares(:,1);
   IB.SummedWeights.RegressAmong(:,run) = Weighting.RegressAmong(:,1);
-  IB.SummedWeights.RegressAmongFlipped(:,run) = Weighting.RegressAmongFlipped(:,1);
-  IB.SummedWeights.MaxentDevFlipped(:,run) = Weighting.MaxentDevFlipped(:,1);
-  IB.SummedWeights.MaxentRhoFlipped(:,run) = Weighting.MaxentRhoFlipped(:,1);
-  IB.SummedWeights.CorCoef(:,run) = Weighting.CorCoef(:,1);
-  IB.SummedWeights.CorCoefFlipped(:,run) = Weighting.CorCoefFlipped(:,1);
+    IB.SummedWeights.CorCoef(:,run) = Weighting.CorCoef(:,1);
+  IB.SummedWeights.GridSize(:,run) = Weighting.GridSize(:,1);
   IB.SummedWeights.UniquenessUp(:,run) = Weighting.UniquenessUp(:,1);
   IB.SummedWeights.UniquenessDown(:,run) = Weighting.UniquenessDown(:,1);
+  IB.SummedWeights.AllUnInformed(:,run) = Weighting.AllUnInformed(:,1);
+  
+  IB.VarWeights.PCA(run) = nanstd(Weighting.PCA(:,1));
+  IB.VarWeights.MedianConv(run) = nanstd(Weighting.Median_Models (:,1));
+  IB.VarWeights.MaxentDeviance(run) = nanstd(Weighting.MaxentDev(:,1));
+  IB.VarWeights.MaxentRho(run) = nanstd(Weighting.MaxentRho(:,1));
+   IB.VarWeights.MaxentLeastSquares(run) = nanstd(Weighting.MaxentLeastSquares(:,1));
+  IB.VarWeights.RegressAmong(run) = nanstd(Weighting.RegressAmong(:,1));
+   IB.VarWeights.CorCoef(run) = nanstd(Weighting.CorCoef(:,1));
+  IB.VarWeights.GridSize(run) = nanstd(Weighting.GridSize(:,1));
+  IB.VarWeights.UniquenessUp(run) = nanstd(Weighting.UniquenessUp(:,1));
+  IB.VarWeights.UniquenessDown(run) = nanstd(Weighting.UniquenessDown(:,1));
+  IB.VarWeights.AllUnInformed(run) = nanstd(Weighting.AllUnInformed(:,1));
   
   if Parameters.testRun ~= 2
   IB.SummedWeights.HI_Deviance(:,run) = Weighting.Deviance(:,3); %Half
@@ -59,6 +73,13 @@ for run = 1:Parameters.runMax
   IB.SummedWeights.BaggedRegres(:,run) =Weighting.Trained_Weights(:,1);% Half
   IB.SummedWeights.Trained_IteratedDev(:,run) = Weighting.Trained_IteratedDev(:,1); % half
   IB.SummedWeights.Trained_IteratedRho(:,run) = Weighting.Trained_IteratedRho(:,1); % half
+  IB.SummedWeights.Trained_IteratedLeast(:,run) = Weighting.Trained_IteratedLeast(:,1); % half
+  IB.VarWeights.HI_Deviance(run) = nanstd(Weighting.Deviance(:,3)); %Half
+  IB.VarWeights.HI_Rho(run) = nanstd(Weighting.Rho(:,3)); % Half
+  IB.VarWeights.BaggedRegres(run) =nanstd(Weighting.Trained_Weights(:,1));% Half
+  IB.VarWeights.Trained_IteratedDev(run) = nanstd(Weighting.Trained_IteratedDev(:,1)); % half
+  IB.VarWeights.Trained_IteratedRho(run) = nanstd(Weighting.Trained_IteratedRho(:,1)); % half
+  IB.VarWeights.Trained_IteratedLeast(run) = nanstd(Weighting.Trained_IteratedLeast(:,1)); % half
   end
 end
 cd ..
@@ -116,29 +137,15 @@ end
 %% weights
 ResultsWeights = dataset((nanmean(IB.SummedWeights.PCA,2)),'Varnames',{'PCA'});
 ResultsWeights.MedianConv(:,1) = nanmean(IB.SummedWeights.MedianConv,2);
+ResultsWeights.RegressAmong(:,1) = nanmean(IB.SummedWeights.RegressAmong,2);
 ResultsWeights.MaxentDeviance(:,1) =  nanmean(IB.SummedWeights.MaxentDeviance,2);
 ResultsWeights.MaxentRho(:,1) =  nanmean(IB.SummedWeights.MaxentRho,2);
-ResultsWeights.RegressAmong(:,1) = nanmean(IB.SummedWeights.RegressAmong,2);
-ResultsWeights.RegressAmong_Inversed(:,1) = nanmean(IB.SummedWeights.RegressAmongFlipped,2);
-ResultsWeights.MaxentDeviance_Inversed(:,1) = nanmean(IB.SummedWeights.MaxentDevFlipped,2);
-ResultsWeights.MaxentRho_Inversed(:,1) = nanmean(IB.SummedWeights.MaxentRhoFlipped,2);
+ResultsWeights.MaxentLeastSquares(:,1) =  nanmean(IB.SummedWeights.MaxentLeastSquares,2);
 ResultsWeights.CorCoef(:,1) = nanmean(IB.SummedWeights.CorCoef,2);
-ResultsWeights.CorCoef_Inversed(:,1) = nanmean(IB.SummedWeights.CorCoefFlipped,2);
+ResultsWeights.GridSize(:,1) = nanmean(IB.SummedWeights.GridSize,2);
 ResultsWeights.Upweighted_Uniqueness(:,1) = nanmean(IB.SummedWeights.UniquenessUp,2);
 ResultsWeights.Downweighted_Uniqueness(:,1) = nanmean(IB.SummedWeights.UniquenessDown,2);
-
-ResultsWeights.PCA_Std(:,1) = nanstd(IB.SummedWeights.PCA,0,2);
-ResultsWeights.MedianConv_Std(:,1) = nanstd(IB.SummedWeights.MedianConv,0,2);
-ResultsWeights.MaxentDeviance_Std(:,1) =  nanstd(IB.SummedWeights.MaxentDeviance,0,2);
-ResultsWeights.MaxentRho_Std(:,1) =  nanstd(IB.SummedWeights.MaxentRho,0,2);
-ResultsWeights.RegressAmong_Std(:,1) = nanstd(IB.SummedWeights.RegressAmong,0,2);
-ResultsWeights.RegressAmong_Inversed_Std(:,1) = nanstd(IB.SummedWeights.RegressAmongFlipped,0,2);
-ResultsWeights.MaxentDeviance_Inversed_Std(:,1) = nanstd(IB.SummedWeights.MaxentDevFlipped,0,2);
-ResultsWeights.MaxentRho_Inversed_Std(:,1) = nanstd(IB.SummedWeights.MaxentRhoFlipped,0,2);
-ResultsWeights.CorCoef_Std(:,1) = nanstd(IB.SummedWeights.CorCoef,0,2);
-ResultsWeights.CorCoef_Inversed_Std(:,1) = nanstd(IB.SummedWeights.CorCoefFlipped,0,2);
-ResultsWeights.Upweighted_Uniqueness_Std(:,1) = nanstd(IB.SummedWeights.UniquenessUp,0,2);
-ResultsWeights.Downweighted_Uniqueness_Std(:,1) = nanstd(IB.SummedWeights.UniquenessDown,0,2);
+ResultsWeights.AllUnInformed(:,1) = nanmean(IB.SummedWeights.AllUnInformed,2);
 
  if Parameters.testRun ~= 2
 ResultsWeights.HI_Deviance(:,1) = nanmean(IB.SummedWeights.HI_Deviance,2);
@@ -146,10 +153,47 @@ ResultsWeights.HI_Rho(:,1) = nanmean(IB.SummedWeights.HI_Rho,2);
 ResultsWeights.BaggedRegres(:,1) = nanmean(IB.SummedWeights.BaggedRegres,2);
 ResultsWeights.Trained_IteatedDev(:,1) =  nanmean(IB.SummedWeights.Trained_IteratedDev,2);
 ResultsWeights.Trained_IteratedRho(:,1) =  nanmean(IB.SummedWeights.Trained_IteratedRho,2);
+ResultsWeights.Trained_IteratedLeast(:,1) =  nanmean(IB.SummedWeights.Trained_IteratedLeast,2);
 ResultsWeights.HI_Deviance_Std(:,1) = nanstd(IB.SummedWeights.HI_Deviance,0,2);
 ResultsWeights.HI_Rho_Std(:,1) = nanstd(IB.SummedWeights.HI_Rho,0,2);
 ResultsWeights.BaggedRegres_Std(:,1) = nanstd(IB.SummedWeights.BaggedRegres,0,2);
 ResultsWeights.Trained_IteratedDev_Std(:,1) =  nanstd(IB.SummedWeights.Trained_IteratedDev,0,2);
 ResultsWeights.Trained_IteratedRho_Std(:,1) =  nanstd(IB.SummedWeights.Trained_IteratedRho,0,2);
+ResultsWeights.Trained_IteratedLeast_Std(:,1) =  nanstd(IB.SummedWeights.Trained_IteratedLeast,0,2);
  end
+ 
+ResultsWeights.PCA_Std(:,1) = nanstd(IB.SummedWeights.PCA,0,2);
+ResultsWeights.MedianConv_Std(:,1) = nanstd(IB.SummedWeights.MedianConv,0,2);
+ResultsWeights.RegressAmong_Std(:,1) = nanstd(IB.SummedWeights.RegressAmong,0,2);
+ResultsWeights.MaxentDeviance_Std(:,1) =  nanstd(IB.SummedWeights.MaxentDeviance,0,2);
+ResultsWeights.MaxentRho_Std(:,1) =  nanstd(IB.SummedWeights.MaxentRho,0,2);
+ResultsWeights.MaxentLeastSquares_Std(:,1) =  nanstd(IB.SummedWeights.MaxentLeastSquares,0,2);
+ResultsWeights.CorCoef_Std(:,1) = nanstd(IB.SummedWeights.CorCoef,0,2);
+ResultsWeights.GridSize_Std(:,1) = nanstd(IB.SummedWeights.GridSize,0,2);
+ResultsWeights.Upweighted_Uniqueness_Std(:,1) = nanstd(IB.SummedWeights.UniquenessUp,0,2);
+ResultsWeights.Downweighted_Uniqueness_Std(:,1) = nanstd(IB.SummedWeights.UniquenessDown,0,2);
+ResultsWeights.AllUnInformed_Std(:,1) = nanstd(IB.SummedWeights.AllUnInformed,0,2);
+
+ if Parameters.testRun ~= 2
+VariationWeights.HI_Deviance(:,1) = nanmean(IB.VarWeights.HI_Deviance);
+VariationWeights.HI_Rho(:,1) = nanmean(IB.VarWeights.HI_Rho);
+VariationWeights.BaggedRegres(:,1) = nanmean(IB.VarWeights.BaggedRegres);
+VariationWeights.Trained_IteatedDev(:,1) =  nanmean(IB.VarWeights.Trained_IteratedDev);
+VariationWeights.Trained_IteratedRho(:,1) =  nanmean(IB.VarWeights.Trained_IteratedRho);
+VariationWeights.Trained_IteratedLeast(:,1) =  nanmean(IB.VarWeights.Trained_IteratedLeast);
+ end
+ 
+VariationWeights = dataset((nanmean(IB.VarWeights.PCA)),'Varnames',{'PCA'});
+VariationWeights.MedianConv(:,1) = nanmean(IB.VarWeights.MedianConv);
+VariationWeights.RegressAmong(:,1) = nanmean(IB.VarWeights.RegressAmong);
+VariationWeights.MaxentDeviance(:,1) =  nanmean(IB.VarWeights.MaxentDeviance);
+VariationWeights.MaxentRho(:,1) =  nanmean(IB.VarWeights.MaxentRho);
+VariationWeights.MaxentLeastSquares(:,1) =  nanmean(IB.VarWeights.MaxentLeastSquares);
+VariationWeights.CorCoef(:,1) = nanmean(IB.VarWeights.CorCoef);
+VariationWeights.GridSize(:,1) = nanmean(IB.VarWeights.GridSize);
+VariationWeights.Upweighted_Uniqueness(:,1) = nanmean(IB.VarWeights.UniquenessUp);
+VariationWeights.Downweighted_Uniqueness(:,1) = nanmean(IB.VarWeights.UniquenessDown); 
+VariationWeights.AllUnInformed(:,1) = nanmean(IB.VarWeights.AllUnInformed); 
+
+
 end

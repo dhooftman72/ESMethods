@@ -102,10 +102,9 @@ elseif  Ensemble == 5
     [InvModels, ~] = ModelClean(InvModels, []);
     [coefs,~,~,~] = princomp(InvModels);
     PCA_weights = coefs(:,1);
-    Weighting.PCA(:,1) = PCA_weights;
     InvModels = model_values_store; % Restore full dataset
     [model_values,~,new_weights] = Weightin_algo(InvModels,PCA_weights,Parameters);
-    Weighting.PCA(:,2) = new_weights;
+    Weighting.PCA(:,1) = new_weights;
     clear PCA_weights
 elseif Ensemble == 6
     InvModels = model_values_store;
@@ -161,96 +160,112 @@ elseif Ensemble == 7
     Weighting.RegressAmong(:,2) = CVErr.*new_weights;
     Weighting.RegressAmong(:,3) = CVErr;
     Weighting.MaxentStart = [AvgDev; AvgRho];
-elseif Ensemble == 8 % Flipped cross regres    
-    disp('      Flipping Cross regression of Models')
-     NewWeights = Weighting.RegressAmong(:,1);
-     [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
-     Weighting.RegressAmongFlipped = new_weights;
-elseif Ensemble == 9 || Ensemble == 10
-      disp('      Iterating Cross validation optimal fit')
+    % elseif Ensemble == 8 % Flipped cross regres
+    %     disp('      Flipping Cross regression of Models')
+    %      NewWeights = Weighting.RegressAmong(:,1);
+    %      [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
+    %      Weighting.RegressAmongFlipped = new_weights;
+elseif Ensemble == 8 || Ensemble == 9 || Ensemble == 10
+    disp('      Iterating Cross validation optimal fit')
     % Start algo, make general function by using different names for in and
     % output
     Store.Dev(1) = Weighting.MaxentStart(1);
     Store.Rho(1) = Weighting.MaxentStart(2);
+    Store.Least(1) = 0;
     Store.Weights(:,1) = Weighting.RegressAmong(:,1);
     Deltas =  Weighting.RegressAmong(:,3);
     nrM = size(model_values_store,2);
-     Weights = TakeBetaWeights(Parameters,nrM,1);
-    %Baseline
-    [NewDev, NewRho] = CrossValidate(model_values_store,nrM,Weights,Parameters,Sizes);
-    Store.Dev(2) = NewDev;
-    Store.Rho(2) = NewRho;
-    Store.Weights(:,2) = Weights;
-    Cur.Dev = NewDev;
-    Cur.Rho = NewRho;
-    Cur.Weights = Weights;
-    clear Weights NewDev NewRho
-    %% Loops
-    %Initiate
-    its = 1;
-    improv = 1;
-    precision = 8;
-    while its < Parameters.max_its
-        if Parameters.testRun == 1 ||  Parameters.testRun == 2
-            clc
-            disp(str)
-            if exist('DecCrit','var')~= 0
+    %Weights = Weighting.RegressAmong(:,1);
+    for runs = 1:Parameters.RunsMaxent
+        Weights = TakeBetaWeights(Parameters,nrM,1);
+        %Baseline
+        [NewDev, NewRho,NewLeast] = CrossValidate(model_values_store,nrM,Weights,Parameters,Sizes);
+        Store.Dev(2) = NewDev;
+        Store.Rho(2) = NewRho;
+        Store.Least(2) = NewLeast;
+        Store.Weights(:,2) = Weights;
+        Cur.Dev = NewDev;
+        Cur.Rho = NewRho;
+        Cur.Least = NewLeast;
+        Cur.Weights = Weights;
+       % clear Weights NewDev NewRho
+        %% Loops
+        %Initiate
+        its = 1;
+        improv = 1;
+        precision = 8;
+        if Ensemble == 8
+            DecCrit = Cur.Dev;
+        elseif Ensemble == 9
+            DecCrit = Cur.Rho;
+        else
+            DecCrit = Cur.Least;
+        end
+
+        while its < Parameters.max_its
+            if Parameters.testRun == 1 ||  Parameters.testRun == 2
+                clc
+                disp(str)
+                display(['Runs =' num2str(runs)]);
                 display(['Criterion Value =' num2str(DecCrit,precision)])
+                display(['Iteration = ',int2str(its)])
+                display(['Improvement # = ',int2str(improv)])
             end
-            display(['Iteration = ',int2str(its)])
-            display(['Improvement = ',int2str(improv)])
-        end
-        if rem(its,5) == 0
-             Cur.Weights = TakeBetaWeights(Parameters,nrM,its);
-        end
-        for i = 1:1:nrM
-            Nwght = Cur.Weights;
-             Nwght(i) = DeltaWght(Cur.Weights(i),Deltas(i));
-            Nwght = ShapeWeights(Nwght,Parameters);
-            % Cross Validate Models
-            [NewDev, NewRho] = CrossValidate(model_values_store,nrM,Nwght,Parameters,Sizes);
-            if NewRho == -9999
-                break
+            if rem(its,5) == 0
+                Cur.Weights = TakeBetaWeights(Parameters,nrM,its);
             end
-            if Ensemble == 9
-                DecCrit = Cur.Dev;
-                Crit = NewDev;
-            else
-                DecCrit = Cur.Rho;
-                Crit = NewRho;
+            for i = 1:1:nrM
+                Nwght = Cur.Weights;
+                Nwght(i) = DeltaWght(Cur.Weights(i),Deltas(i));
+                Nwght = ShapeWeights(Nwght,Parameters);
+                % Cross Validate Models
+                [NewDev, NewRho,NewLeast] = CrossValidate(model_values_store,nrM,Nwght,Parameters,Sizes);
+                if NewRho == -9999
+                    break
+                end
+                if Ensemble == 8
+                    DecCrit = Cur.Dev;
+                    Crit = NewDev;
+                elseif Ensemble == 9
+                    DecCrit = Cur.Rho;
+                    Crit = NewRho;
+                else
+                    DecCrit = Cur.Least;
+                    Crit = NewLeast;
+                end
+                [Cur, ~, improv, its] = DecisionTake(Crit,DecCrit,Store,improv,Cur,its,Nwght,NewDev,NewRho,NewLeast,Parameters);
+               % clear Nwght NewDev NewRho Crit
             end
-            [Cur, Store, improv, its] = DecisionTake(Crit,DecCrit,Store,...
-                improv,Cur,its,Nwght,NewDev,NewRho,Parameters);
-            clear Nwght NewDev NewRh
+            its = its + 1;
         end
-        its = its + 1;
+        CurWeights(:,runs) = Cur.Weights;
     end
+    NewWeights = nanmedian(CurWeights,2);
+    Weights = ShapeWeights(NewWeights,Parameters);
+    Cur.Weights = Weights;
     % screen output of better deviance (maxent style, add when it works)
     % calcuate the actual model values
     InvModels = model_values_store; % Restore full dataset
     [model_values,~,new_weights] = Weightin_algo(InvModels,Cur.Weights,Parameters);
     Store.TimesImproved = improv;
-    if Ensemble == 9
+    if Ensemble == 8
         Weighting.MaxentDev(:,1) = new_weights;
         MaxentStore.Dev = Store;
-    else
+    elseif Ensemble == 9
         Weighting.MaxentRho(:,1) = new_weights;
         MaxentStore.Rho = Store;
+    else
+        Weighting.MaxentLeastSquares(:,1) = new_weights;
+        MaxentStore.LeastSquares = Store;
     end
     clear Store Cur
-elseif Ensemble == 11 %Flipped cross validation Deviation
-    disp('      Flipping iterations of Cross validation optimal fit: Deviance')
-     NewWeights = Weighting.MaxentDev(:,1);
-    [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
-     Weighting.MaxentDevFlipped = new_weights;
-     clear Weights NewWeights 
-elseif Ensemble == 12 %Flipped cross validation Rho
-     disp('      Flipping iterations of Cross validation optimal fit: Spearman Rho')
-     NewWeights = Weighting.MaxentRho(:,1);
-     [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
-     Weighting.MaxentRhoFlipped = new_weights;   
-     clear Weights NewWeights 
-elseif Ensemble == 13 % Corrcoef
+    % elseif Ensemble == 12 %Flipped cross validation Rho
+    %      disp('      Flipping iterations of Cross validation optimal fit: Spearman Rho')
+    %      NewWeights = Weighting.MaxentRho(:,1);
+    %      [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
+    %      Weighting.MaxentRhoFlipped = new_weights;
+    %      clear Weights NewWeights
+elseif Ensemble == 11 % Corrcoef
     disp('      Correlation coefficient among ouputs')
     InvModels = model_values_store;
     [InvModels, ~] = ModelClean(InvModels, []);
@@ -259,35 +274,48 @@ elseif Ensemble == 13 % Corrcoef
     InvModels = model_values_store; % Restore full dataset
     [model_values,~,new_weights] = Weightin_algo(InvModels,Weights,Parameters);
     Weighting.CorCoef(:,1) = Weights;
-    clear Weights NewWeights 
-elseif Ensemble == 14 % Corrcoef Flipped
-     disp('      Flipping Correlation coefficient among ouputs')
-      NewWeights = Weighting.CorCoef(:,1);
-     [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);  
-     Weighting.CorCoefFlipped = new_weights;   
-     clear Weights NewWeights   
-elseif Ensemble == 15 % Uniqeness
-     disp('      Model Uniqueness (upweighting unique models)')
+    clear Weights NewWeights
+elseif Ensemble == 12 % GridSize
+    disp('      Gridsize differences among maps')
+    NewWeights = reshape((1./(log10(Parameters.GridSizes))),length(Parameters.GridSizes),1);
+    Weights = ShapeWeights(NewWeights,Parameters);
+    InvModels = model_values_store; % Restore full dataset
+    [model_values,~,new_weights] = Weightin_algo(InvModels,Weights,Parameters);
+    Weighting.GridSize(:,1) = Weights;
+    clear Weights NewWeights
+elseif Ensemble == 13 % Uniqeness
+    disp('      Model Uniqueness (upweighting unique models)')
     NewWeights = zeros(length(Parameters.groups),1);
     tst = unique(Parameters.groups);
     for i = 1: length(tst)
         tl = find(Parameters.groups == tst(i));
-    NewWeights(tl) = 1./(length(tl)./length(Parameters.groups));
+        NewWeights(tl) = 1./(length(tl)./length(Parameters.groups));
     end
     Weights = ShapeWeights(NewWeights,Parameters);
-     InvModels = model_values_store; % Restore full dataset
-     [model_values,~,new_weights] = Weightin_algo(InvModels,Weights,Parameters);
-     Weighting.UniquenessUp = new_weights;   
-     clear Weights NewWeights       
-elseif Ensemble == 16 % Uniqueness Flipped
-     disp('      Model Uniqueness (downweighting unique models)')
-      NewWeights = Weighting.UniquenessUp(:,1);
-     [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);  
-     Weighting.UniquenessDown = new_weights;   
-     clear Weights NewWeights   
-  
-%% Half_informed Ensembles
-elseif  Ensemble == 17
+    InvModels = model_values_store; % Restore full dataset
+    [model_values,~,new_weights] = Weightin_algo(InvModels,Weights,Parameters);
+    Weighting.UniquenessUp(:,1) = new_weights;
+    clear Weights NewWeights
+elseif Ensemble == 14 % Uniqueness Flipped
+    disp('      Model Uniqueness (downweighting unique models)')
+    NewWeights = Weighting.UniquenessUp(:,1);
+    [model_values, new_weights] = FlipAlgo(NewWeights,Parameters,model_values_store);
+    Weighting.UniquenessDown(:,1) = new_weights;
+    clear Weights NewWeights
+elseif Ensemble == 15
+    % Mean weight across all Uninformed ensembles
+    wghts = [Weighting.PCA(:,1),Weighting.Median_Models(:,1),Weighting.RegressAmong(:,1),...
+        Weighting.MaxentDev(:,1),Weighting.MaxentRho(:,1),Weighting.MaxentLeastSquares(:,1),...
+        Weighting.CorCoef(:,1),Weighting.GridSize(:,1),Weighting.UniquenessUp(:,1),...
+        Weighting.UniquenessDown(:,1)];
+    NewWeights = nanmean(wghts,2);
+    Weights = ShapeWeights(NewWeights,Parameters);
+    InvModels = model_values_store; % Restore full dataset
+    [model_values,~,new_weights] = Weightin_algo(InvModels,Weights,Parameters);
+    Weighting.AllUnInformed(:,1) = new_weights;
+    
+    %% Half_informed Ensembles
+elseif  Ensemble == 16
     % Deviance weighted stats
     %Weights scaling
     Deviances = Weighting.Deviance(:,1);
@@ -306,41 +334,41 @@ elseif  Ensemble == 17
     Weighting.Deviance(:,3) = new_weights;
     validation_set = validation_S2(:,Parameters.valiNaN);
     
-elseif  Ensemble == 18
+elseif  Ensemble == 17
     % Rho weighted stats
     %Weights scaling
-Rhos_overview =  (Weighting.Rho(:,1)+1)./2;
-Rhos_cor_max = max(Rhos_overview);
-Rhos_cor_range = Rhos_cor_max  -min(Rhos_overview);
-for k = 1:length(Rhos_overview)
-    Rhos_cor(k) = Rhos_cor_max - ((Rhos_cor_max - Rhos_overview(k)).*(1./Rhos_cor_range));
-end
-Rhos = Rhos_cor;
-clear k Rhos_*
-
-Rhos(Rhos < 0.25) = 0.25;
-Weighting.Rho(:,2) = Rhos; % Store to compare
+    Rhos_overview =  (Weighting.Rho(:,1)+1)./2;
+    Rhos_cor_max = max(Rhos_overview);
+    Rhos_cor_range = Rhos_cor_max  -min(Rhos_overview);
+    for k = 1:length(Rhos_overview)
+        Rhos_cor(k) = Rhos_cor_max - ((Rhos_cor_max - Rhos_overview(k)).*(1./Rhos_cor_range));
+    end
+    Rhos = Rhos_cor;
+    clear k Rhos_*
+    
+    Rhos(Rhos < 0.25) = 0.25;
+    Weighting.Rho(:,2) = Rhos; % Store to compare
     % here we start predicting the other part of the data-set
-InvModels = model_values_S2; % note models_values_used = S2
-[model_values,~,new_weights] = Weightin_algo(InvModels,Rhos,Parameters);
-Weighting.Rho(:,3) = new_weights;
-validation_set = validation_S2(:,Parameters.valiNaN);  
-elseif  Ensemble == 19
+    InvModels = model_values_S2; % note models_values_used = S2
+    [model_values,~,new_weights] = Weightin_algo(InvModels,Rhos,Parameters);
+    Weighting.Rho(:,3) = new_weights;
+    validation_set = validation_S2(:,Parameters.valiNaN);
+elseif  Ensemble == 18
     % Best model transfer
     model_values(:,1) = model_values_S2(:,Weighting.BestDev);  % note models_values_used = S2
     clear validation_set
     validation_set = validation_S2(:,Weighting.BestDev);
-elseif  Ensemble == 20
+elseif  Ensemble == 19
     % Best model transfer
     model_values(:,1) = model_values_S2(:,Weighting.BestRho);  % note models_values_used = S2
     clear validation_set
     validation_set = validation_S2(:,Weighting.BestRho);
-elseif Ensemble == 21
+elseif Ensemble == 20
     % Linear model Weight training
     InvModels = model_values_store;
     Predicted = validation_set;
     [InvModels, Predicted] = ModelClean(InvModels, Predicted);
-     disp('      Regressing fit to Training set')
+    disp('      Regressing fit to Training set')
     [Trained_Weights,StdsBeta]  = RegresAlgo(Parameters,InvModels,Predicted);
     % transfer to Validation set
     InvModels = model_values_S2; % Restore full dataset from clean
@@ -348,7 +376,7 @@ elseif Ensemble == 21
     Weighting.Trained_Weights(:,1) = new_weights;
     validation_set = validation_S2(:,Parameters.valiNaN);
     clear   Trained_Weights
-elseif Ensemble == 22 || Ensemble == 23
+elseif Ensemble == 21 || Ensemble == 22 || Ensemble == 23
     % Iterated model Weight training
     InvModels = model_values_store;
     Predicted = validation_set;
@@ -361,16 +389,17 @@ elseif Ensemble == 22 || Ensemble == 23
     Cur.Weights = Weights;
     Cur.Dev = 0;
     Cur.Rho = 0;
+    Cur.Least = -inf;
     Store.Weights(:,1) = Cur.Weights;
     Store.Dev(1) = Cur.Dev;
     Store.Rho(1) = Cur.Rho;
-    
+    Store.Least(1) = Cur.Least;
     %Initiate
     its = 1;
     improv = 1;
     precision = 4;
-    while its < Parameters.max_its
-        if Parameters.testRun == 1 || Parameters.testRun == 2 
+    while its < Parameters.max_itsTRained
+        if Parameters.testRun == 1 || Parameters.testRun == 2
             clc
             disp(str)
             if exist('DecCrit','var')~= 0
@@ -393,15 +422,18 @@ elseif Ensemble == 22 || Ensemble == 23
             if Outputs.RHO ~= -9999;
                 NewDev = Outputs.mean_double_deviation;
                 NewRho = Outputs.RHO;
-                if Ensemble == 22
+                NewLeast = Outputs.LeastSquares;
+                if Ensemble == 21
                     DecCrit = Cur.Dev;
                     Crit = NewDev;
-                else
+                elseif Ensemble == 22
                     DecCrit = Cur.Rho;
                     Crit = NewRho;
+                else
+                    DecCrit = Cur.Least;
+                    Crit = NewLeast;
                 end
-                [Cur, Store, improv, its] = DecisionTake(Crit,DecCrit,Store,...
-                    improv,Cur,its,Nwght,NewDev,NewRho,Parameters);
+                [Cur, Store, improv, its] = DecisionTake(Crit,DecCrit,Store,improv,Cur,its,Nwght,NewDev,NewRho,NewLeast,Parameters);
                 clear Nwght NewDev NewRh
             end
         end
@@ -412,12 +444,15 @@ elseif Ensemble == 22 || Ensemble == 23
     [model_values,~,new_weights] = Weightin_algo(InvModels,Cur.Weights,Parameters);
     validation_set = validation_S2(:,Parameters.valiNaN);
     Store.TimesImproved = improv;
-    if Ensemble == 22
+    if Ensemble == 21
         Weighting.Trained_IteratedDev(:,1) = new_weights;
         MaxentStore.Dev = Store;
-    else
+    elseif Ensemble == 22
         Weighting.Trained_IteratedRho(:,1) = new_weights;
         MaxentStore.Rho = Store;
+    else
+        Weighting.Trained_IteratedLeast(:,1) = new_weights;
+        MaxentStore.Least = Store;
     end
     clear Store Cure
 end
@@ -517,7 +552,7 @@ take_array = 1:nrM;
 take_array(take_array==i) = [];
 end
 
-function  [NewDev, NewRho] = CrossValidate(model_in,nrM,wght,Parameters,Sizes)
+function  [NewDev, NewRho,NewLeast] = CrossValidate(model_in,nrM,wght,Parameters,Sizes)
 % Cross Validate Models
 for j = 1:nrM
     InvModels = model_in;
@@ -530,42 +565,44 @@ for j = 1:nrM
     if Outputs.RHO ~= -9999;
         NewDevs(j) = Outputs.mean_double_deviation;
         NewRhos(j) = Outputs.RHO;
+        NewLeasts(j) = Outputs.LeastSquares;
     end
 end
 if exist('NewRhos','var') == 1
     NewDev = (round(nanmedian(NewDevs).*Parameters.Precision(2)))./Parameters.Precision(2);
     NewRho = (round(nanmedian(NewRhos).*Parameters.Precision(2)))./Parameters.Precision(2);
+    NewLeast = (round(nanmedian(NewLeasts).*Parameters.Precision(2)))./Parameters.Precision(2);
 else
     NewDev =-9999;
     NewRho = -9999;
+    NewLeast = -9999;
 end
 end
 
-function  [Cur, Store, improv, its] = DecisionTake(Crit,DecCrit,Store,improv,Cur,its,Nwght,NewDev,NewRho,~)
+function  [Cur, Store, improv, its] = DecisionTake(Crit,DecCrit,Store,improv,Cur,its,Nwght,NewDev,NewRho,NewLeast,~)
 if Crit > DecCrit
-    Cur.Weights = Nwght;
-    Cur.Dev =  NewDev;
-    Cur.Rho =  NewRho;
-    Store.Dev(improv+2) = NewDev;
-    Store.Rho(improv+2) = NewRho;
-    Store.Weights(:,improv+2) =  Cur.Weights;
+    [Cur,Store,improv] = SetPara(Nwght,NewDev,NewRho,NewLeast,Cur,improv);
     % Reset all running parameters
     its = 1;
-    improv = improv + 1;
 elseif Crit == DecCrit
     Dice = rand;
     if (Dice>0.5)
+        [Cur,Store,improv] = SetPara(Nwght,NewDev,NewRho,NewLeast,Cur,improv);
+        its = its; %#ok<ASGSL> %Note no change in iterations to avoid endless loops
+    end
+end
+    function [Cur,Store,improv] = SetPara(Nwght,NewDev,NewRho,NewLeast,Cur,improv)
         Cur.Weights = Nwght;
         Cur.Dev =  NewDev;
         Cur.Rho =  NewRho;
+        Cur.Least = NewLeast;
         Store.Dev(improv+2) = NewDev;
         Store.Rho(improv+2) = NewRho;
+        Store.Least(improv+2) = NewLeast;
         Store.Weights(:,improv+2) =  Cur.Weights;
-        its = its; %#ok<ASGSL> %Note no change in iterations to avoid endless loops
         improv = improv + 1;
-        equal = 1;
     end
-end
+
 end
 
 function [WghtOut,StdsBeta] = RegresAlgo(Parameters,InParY,InParX)
@@ -605,18 +642,20 @@ elseif (size(InvModels,2)) == 8
 elseif (size(InvModels,2)) == 7
     modelFun = @(b,InvModels) (b(1).*InvModels(:,1)) + (b(2).*InvModels(:,2)) + (b(3).*InvModels(:,3)) +...
         (b(4).*InvModels(:,4)) + (b(5).*InvModels(:,5))+ (b(6).*InvModels(:,6)) + (b(7).*InvModels(:,7));
-elseif (size(InvModelss,2)) == 6
+elseif (size(InvModels,2)) == 6
     modelFun = @(b,InvModels) (b(1).*InvModels(:,1)) + (b(2).*InvModels(:,2)) + (b(3).*InvModels(:,3)) +...
         (b(4).*InvModels(:,4)) + (b(5).*InvModels(:,5))+ (b(6).*InvModels(:,6));
-elseif (size(InclModels,2)) == 5
+elseif (size(InvModels,2)) == 5
     modelFun = @(b,InvModels) (b(1).*InvModels(:,1)) + (b(2).*InvModels(:,2)) + (b(3).*InvModels(:,3)) +...
         (b(4).*InvModels(:,4)) + (b(5).*InvModels(:,5));
 elseif (size(InvModels,2)) == 4
     modelFun = @(b,InvModels) (b(1).*InvModels(:,1)) + (b(2).*InvModels(:,2)) + (b(3).*InvModels(:,3)) +...
         (b(4).*InvModels(:,4)) ;
+elseif (size(InvModels,2)) == 3
+    modelFun = @(b,InvModels) (b(1).*InvModels(:,1)) + (b(2).*InvModels(:,2)) + (b(3).*InvModels(:,3));
 end
 modelFunw = @(b,InvModels)modelFun(b,InvModels);
-Options = statset('FunValCheck','on','Display','off','MaxIter',25,...
+Options = statset('FunValCheck','on','Display','off','MaxIter',100,...
     'TolFun',1.0000e-2, 'TolX',1.0e-2, 'Jacobian','off', 'DerivStep', 6.0555e-03, 'OutputFcn',' ');
 Group = grp2idx(InvModels(:,1));
 end

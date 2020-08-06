@@ -60,6 +60,7 @@ if (exist('testVar','var') == 1) && (isempty(testVar)~= 1) &&  (isnnx ~= length(
     clear deviation_point
     Outputs.deviation_point= abs(y_range-x_range); %% Accuracy per point
     Outputs.mean_double_deviation = 1- ((sum(abs(y_range-x_range)))/Outputs.datapoints); %%Accuracy overall
+    Outputs.LeastSquares = -sum((abs(y_range-x_range)).^2);
     Outputs.std_double_deviation = nanstd(1-(abs(y_range-x_range))); % Output for sensitivities
     Outputs.mean_double_deviation = (round( Outputs.mean_double_deviation.*Parameters.Precision(2)))./Parameters.Precision(2);
     Outputs.std_double_deviation  = (round(Outputs.std_double_deviation.*Parameters.Precision(2)))./Parameters.Precision(2);
