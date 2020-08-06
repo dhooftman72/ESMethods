@@ -1,5 +1,5 @@
 # ESMethods
-Codes belonging to Hooftman et al. Reducing uncertainty in Ecosystem Service moddelling using Ensembles
+Codes belonging to Hooftman et al. Reducing uncertainty in Ecosystem Service modelling using Ensembles
 
 Note: two braches. 
 
