@@ -1,4 +1,7 @@
 # ESMethods
-Codes belonging to a wide array of methods to make Ensemble models
+Codes belonging to Hooftman et al. Reducing uncertainty in Ecosystem Service moddelling using Ensembles
 
-Work in progress, used as back-up of last working version of now 22-04-2020
+Note: two braches. 
+
+Main branch: ensemble generating and comparing as well as correlations between spatial drivers and uncertainty (Matlab)
+Extraction tools: combining and cleaning data  for both models and validation sets (Matlab & arcpy)
