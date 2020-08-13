@@ -26,7 +26,6 @@ if (exist('testVar','var') == 1) && (isempty(testVar)~= 1) &&  (isnnx ~= length(
     Outputs.PVAL = single(Outputs.PVAL);
     Outputs.RHO = (round(Outputs.RHO.*Parameters.Precision(2)))./Parameters.Precision(2);
     %% Inverse deviance against a 1:1 line
-    clear x_range y_range
     % Mean double normalised deviation: !Winzorisation!
     % Two sides and on range!!
     if Parameters.ensemble == 0
