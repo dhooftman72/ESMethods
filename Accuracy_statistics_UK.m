@@ -12,14 +12,9 @@ a(:,1) = unique(all);
 testArray(a,:) = [];  %#ok<*FNDSB>
 orginal_order(a,:) = [];
 missing_order = a;
-clear a
-clear a1
-clear b
-clear c
-clear all
 Outputs.datapoints = size(testArray,1);
+
 %% Make log if applicable, but not for Ensembles
-clear testVar
 testVar = testArray;
 if  Parameters.make_log == 1
     testVar = log10(testArray+1);
@@ -56,8 +51,6 @@ if (exist('testVar','var') == 1) && (isempty(testVar)~= 1) &&  (isnnx ~= length(
         x_range(x_range>1) = 1;
         y_range(y_range>1) = 1;
     end
-    clear x_range_* y_range_*
-    clear deviation_point
     Outputs.deviation_point= abs(y_range-x_range); %% Accuracy per point
     Outputs.mean_double_deviation = 1- ((sum(abs(y_range-x_range)))/Outputs.datapoints); %%Accuracy overall
     Outputs.LeastSquares = -sum((abs(y_range-x_range)).^2);
@@ -66,7 +59,6 @@ if (exist('testVar','var') == 1) && (isempty(testVar)~= 1) &&  (isnnx ~= length(
     Outputs.std_double_deviation  = (round(Outputs.std_double_deviation.*Parameters.Precision(2)))./Parameters.Precision(2);
     % %% recreate x and y ranges in orginal order, for individual model point
     % storage to create ensembles
-    clear xes yes
 Outputs.xes(orginal_order,1) = x_range;
 Outputs.xes(missing_order,1) = NaN;
 Outputs.yes(orginal_order,1) = y_range;
